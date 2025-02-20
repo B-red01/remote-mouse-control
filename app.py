@@ -89,6 +89,11 @@ HTML_PAGE = """<!DOCTYPE html>
             display: flex;
             gap: 20px;
         }
+        .playback-controls {
+            margin-top: 20px;
+            display: flex;
+            gap: 20px;
+        }
         input {
             background: #1e1e1e;
             color: white;
@@ -124,7 +129,10 @@ HTML_PAGE = """<!DOCTYPE html>
         <button onclick="sendKey('pageup')">⬆️ Page Up</button>
         <button onclick="sendKey('pagedown')">⬇️ Page Down</button>
     </div>
-    
+    <div class="playback-controls">
+        <button onclick="sendKey('rewind')">⏪ Rewind 5s</button>
+        <button onclick="sendKey('forward')">⏩ Forward 5s</button>
+    </div>
     <div class="keyboard-section">
         <input type="text" id="keyboardInput" placeholder="Type here..." autofocus />
     </div>
@@ -258,6 +266,12 @@ def keypress():
         elif key == "pagedown":
             keyboard.press(Key.page_down)
             keyboard.release(Key.page_down)
+        elif key == "rewind":
+            keyboard.press(Key.left)
+            keyboard.release(Key.left)
+        elif key == "forward":
+            keyboard.press(Key.right)
+            keyboard.release(Key.right)
         else:
             keyboard.type(key)
 
