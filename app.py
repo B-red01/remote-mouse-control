@@ -84,11 +84,6 @@ HTML_PAGE = """<!DOCTYPE html>
             grid-template-columns: 1fr 1fr 1fr;
             gap: 10px;
         }
-        .click-buttons {
-            margin-top: 20px;
-            display: flex;
-            gap: 20px;
-        }
         .playback-controls {
             margin-top: 20px;
             display: flex;
@@ -105,26 +100,25 @@ HTML_PAGE = """<!DOCTYPE html>
             width: 80%;
             margin-top: 20px;
         }
+        .trackpad {
+            width: 300px;
+            height: 300px;
+            background: #222;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid white;
+            border-radius: 10px;
+            margin-top: 20px;
+            user-select: none;
+        }
     </style>
 </head>
+
 <body>
     <h2>Remote Cursor Control</h2>
-    <div class="controls">
-        <div></div>
-        <button onclick="moveCursor('up')">🔼</button>
-        <div></div>
-        <button onclick="moveCursor('left')">◀️</button>
-        <div></div>
-        <button onclick="moveCursor('right')">▶️</button>
-        <div></div>
-        <button onclick="moveCursor('down')">🔽</button>
-        <div></div>
-    </div>
-
-    <div class="click-buttons">
-        <button onclick="sendClick('left')">🖱️ Left Click</button>
-        <button onclick="sendClick('right')">🖱️ Right Click</button>
-    </div>
+    <div id="trackpad" class="trackpad">Move here</div>
     <div class="scroll-buttons">
         <button onclick="sendKey('pageup')">⬆️ Page Up</button>
         <button onclick="sendKey('pagedown')">⬇️ Page Down</button>
@@ -170,6 +164,57 @@ HTML_PAGE = """<!DOCTYPE html>
             })
             .catch(error => console.error("[ERROR] Validation failed:", error));
         });
+
+        let lastTap = 0;
+        let touchStartX = 0, touchStartY = 0;
+        let isDragging = false;
+
+        trackpad.addEventListener("touchstart", function (event) {
+            event.preventDefault();
+            
+            let touch = event.touches[0];
+            touchStartX = touch.clientX;
+            touchStartY = touch.clientY;
+            isDragging = false;
+        });
+
+        trackpad.addEventListener("touchmove", function (event) {
+            event.preventDefault();
+            let touch = event.touches[0];
+            let deltaX = touch.clientX - touchStartX;
+            let deltaY = touch.clientY - touchStartY;
+
+            if (Math.abs(deltaX) > 5 || Math.abs(deltaY) > 5) {
+                isDragging = true;
+                socket.emit("move_cursor", { deltaX, deltaY, password: storedPassword });
+                touchStartX = touch.clientX;
+                touchStartY = touch.clientY;
+            }
+        });
+
+        trackpad.addEventListener("touchend", function (event) {
+            if (isDragging) {
+                console.log("[INFO] Drag detected");
+                return; // Ignore taps if it's a drag
+            }
+            let currentTime = new Date().getTime();
+            let tapLength = currentTime - lastTap;
+
+            if (tapLength < 300 && tapLength > 0) {
+                console.log("[INFO] Double Click");
+                sendClick('right')
+            } else {
+                setTimeout(() => {
+                    if (new Date().getTime() - lastTap >= 300) {
+                        console.log("[INFO] Single Click");
+                        sendClick('left')
+                    }
+                }, 300);
+            }
+
+            lastTap = currentTime;
+        });
+
         function sendClick(button) {
             fetch("/click", {
                 method: "POST",
@@ -187,11 +232,6 @@ HTML_PAGE = """<!DOCTYPE html>
             });
         }
 
-        function moveCursor(direction) {
-            console.log("[DEBUG] Moving:", direction);
-            socket.emit("move_cursor", { direction: direction , password: storedPassword });
-        }
-    
         inputField.addEventListener("input", function (event) {
             let key = event.data;
             if (key) {
@@ -277,7 +317,6 @@ def keypress():
 
     return jsonify({"status": "success", "key": key})
 
-### ✅ WebSocket for Real-time Cursor Movement (Using pyautogui)
 @socketio.on("move_cursor")
 def move_cursor(data):
     password = data.get("password")  # Get password from client
@@ -285,19 +324,12 @@ def move_cursor(data):
         print(f"[INFO] unauthorized")
         disconnect()
         return
-    x, y = pyautogui.position()
-    direction = data.get("direction", "")
-
-    if direction == "up":
-        pyautogui.moveTo(x, y - MOVE_AMOUNT)
-    elif direction == "down":
-        pyautogui.moveTo(x, y + MOVE_AMOUNT)
-    elif direction == "left":
-        pyautogui.moveTo(x - MOVE_AMOUNT, y)
-    elif direction == "right":
-        pyautogui.moveTo(x + MOVE_AMOUNT, y)
-
-    print(f"[INFO] Moved {direction} to {pyautogui.position()}")
+    delta_x = data.get("deltaX", 0)
+    delta_y = data.get("deltaY", 0)
+    
+    # Move mouse relative to current position
+    pyautogui.move(delta_x, delta_y)
+    print(f"Moved: {delta_x}, {delta_y}")
 
 
 
